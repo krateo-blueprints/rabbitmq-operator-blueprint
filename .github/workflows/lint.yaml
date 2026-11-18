@@ -1,0 +1,65 @@
+name: lint
+
+# The gates of this repository. release-tag.yaml refuses a commit with no successful run of this workflow
+# (krateo-blueprints/charts PUBLISHING.md rule 10), and a release tags a commit on main, which a pull_request run never
+# covers, so it also runs on pushes to main.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-docs:
+    uses: krateo-platformops/.github/.github/workflows/lint-docs.yaml@f25d6b526bde39f37bca6a4eb8c493bf4c2bbec1 # main, 2026-11-17 (the repository has no tags)
+
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Helm
+        uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      # Every gate exits 2 when PyYAML is missing, so a lost install fails the job instead of skipping it.
+      - name: Install PyYAML
+        run: pip install "PyYAML==6.0.2"
+
+      # The vendored release manifests are byte for byte the upstream assets: the recorded digest, and (live) what
+      # GitHub serves for the pinned tag today.
+      - name: Each chart vendors its upstream release manifest unchanged
+        run: python3 hack/validate-vendored.py . --live
+
+      # appVersion, the image, the krateo.io/upstream annotation, the CompositionDefinitions, the required CRDs and the
+      # examples agree with hack/upstream.yaml and with each other.
+      - name: Every version names the same upstream release
+        run: python3 hack/validate-version-mirror.py .
+
+      # The render is upstream with exactly the documented changes; HA defaults; the cert-manager and RabbitmqCluster
+      # refusals, driven with stand-in CRD lookups.
+      - name: Each chart renders upstream with only the documented changes, and refuses without its CRDs
+        run: python3 hack/validate-render.py .
+
+      # The reusable release preflight runs first and gates the push; the hook refuses what it must.
+      - name: The release runs this repository's preflight before publishing anything
+        run: python3 hack/validate-release-wiring.py .
+
+      - name: Repository-authored YAML is block style only
+        run: python3 hack/validate-yaml-block-style.py .
+
+      - name: helm lint every chart
+        run: |
+          set -euo pipefail
+          for c in blueprints/*/chart; do
+            sed -i "s/CHART_VERSION/0.0.0-ci/g" "$c/Chart.yaml"
+            helm lint "$c"
+          done

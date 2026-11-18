@@ -1,0 +1,34 @@
+# The upstream release manifest is vendored unchanged in files/upstream/cluster-operator.yml and rendered by templates/manifests.yaml.
+# These values change only what is listed here; everything else is upstream's (rabbitmq/cluster-operator v2.23.2).
+
+# Replicas of the operator Deployment. The operator elects a leader, so extra replicas are standbys that take over
+# within a lease when the leader's pod or node goes away. Upstream ships 1.
+replicas: 2
+
+image:
+  repository: ghcr.io/rabbitmq/cluster-operator
+  # Upstream's tag for this release. hack/validate-version-mirror.py keeps it equal to appVersion and to the image in
+  # the vendored manifest.
+  tag: "2.23.2"
+  # Empty: upstream's (no imagePullPolicy set).
+  pullPolicy: ""
+
+# Spread of the replicas over nodes: preferred (the default), required, or none. required needs at least as many
+# schedulable nodes as replicas.
+podAntiAffinity:
+  type: preferred
+  topologyKey: kubernetes.io/hostname
+
+# Rendered only with more than one replica: lets a node drain take one replica at a time.
+podDisruptionBudget:
+  maxUnavailable: 1
+
+# Empty: upstream's requests and limits.
+resources: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+# Injected by the Krateo installer when this chart is pinned as a component; unused by the templates.
+global: {}

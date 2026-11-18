@@ -1,0 +1,11 @@
+# The messaging-topology-operator, as a Composition of the rabbitmq-topology-operator CompositionDefinition. Until
+# cert-manager's and RabbitmqCluster's CRDs are served it refuses to render, with the reason on its status, and renders
+# by itself on a later reconcile.
+---
+apiVersion: composition.krateo.io/v0-1-0
+kind: RabbitmqTopologyOperator
+metadata:
+  name: rabbitmq-topology-operator
+  namespace: rabbitmq-operator-system
+spec:
+  replicas: 2

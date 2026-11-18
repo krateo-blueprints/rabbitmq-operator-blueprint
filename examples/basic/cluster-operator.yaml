@@ -1,0 +1,11 @@
+# The cluster-operator, as a Composition of the rabbitmq-cluster-operator CompositionDefinition. Apply it first: the
+# topology operator refuses to render until RabbitmqCluster's CRD is served. cert-manager must already be installed,
+# from any source (docs/usage.md).
+---
+apiVersion: composition.krateo.io/v0-1-0
+kind: RabbitmqClusterOperator
+metadata:
+  name: rabbitmq-cluster-operator
+  namespace: rabbitmq-operator-system
+spec:
+  replicas: 2

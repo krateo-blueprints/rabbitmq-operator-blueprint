@@ -1,0 +1,26 @@
+apiVersion: v2
+name: rabbitmq-topology-operator
+type: application
+# Stamped from the git tag at release (CHART_VERSION). Both charts in this repository share the repository's one
+# version line, and the upstream version is appVersion. A chart wrapping ONE upstream may instead commit a literal
+# version equal to upstream's (krateo-blueprints/charts PUBLISHING.md, charts that version independently). Here one tag
+# stamps both charts, and the two upstreams (cluster-operator 2.23.2, messaging-topology-operator 1.20.5) cannot both
+# equal it. docs/release.md.
+version: CHART_VERSION
+appVersion: "1.20.5"
+description: The RabbitMQ messaging-topology-operator (User, Vhost, Permission, Policy and more), vendored from its upstream release manifest, as a Krateo blueprint.
+icon: https://raw.githubusercontent.com/krateo-platformops/.github/main/brand/logo.svg
+home: https://github.com/krateo-blueprints/rabbitmq-operator-blueprint
+sources:
+  - https://github.com/krateo-blueprints/rabbitmq-operator-blueprint
+  - https://github.com/rabbitmq/messaging-topology-operator
+keywords:
+  - rabbitmq
+  - messaging
+  - operator
+maintainers:
+  - name: krateo
+annotations:
+  krateo.io/category: messaging
+  # The upstream release this chart vendors, byte for byte (hack/upstream.yaml, hack/validate-vendored.py).
+  krateo.io/upstream: rabbitmq/messaging-topology-operator v1.20.5
