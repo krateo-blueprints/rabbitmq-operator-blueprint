@@ -279,7 +279,9 @@ MUTATE = [
     ("no stamping", 'sed -i "s/CHART_VERSION/${VERSION}/g" "${bp}chart/Chart.yaml" "${bp}compositiondefinition.yaml"',
      "true"),
     ("no artifact", "        uses: actions/upload-artifact@", "        uses: actions/cache@"),
-    ("the chart push at @main", "actions/chart-push@fb91b76eb585cdd2f148abfbfb6d14e05bcbacb4", "actions/chart-push@main"),
+    # The pin as the workflow has it, whatever commit it names, so a bump of the pin does not break the mutant.
+    ("the chart push at @main", (re.search(r"actions/chart-push@[0-9a-f]{40}", pre_text) or re.match("", "")).group(0) or
+     "actions/chart-push@<no pinned chart-push in prerelease.yaml>", "actions/chart-push@main"),
     ("CHART_PUSH from nowhere", "          CHART_PUSH: ${{ steps.chart-push.outputs.path }}\n",
      "          CHART_PUSH: /tmp/push.sh\n"),
     ("a bare helm push", 'bash "${CHART_PUSH}" "pkg/${name}-${VERSION}.tgz" "${OCI_REPO}"',
