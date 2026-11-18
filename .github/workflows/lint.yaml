@@ -65,6 +65,11 @@ jobs:
       - name: A pre-release reaches GHCR only, and a release is never a pre-release version
         run: python3 hack/validate-prerelease-channel.py .
 
+      # Stand-in helm and curl: the race retried on the same digest once served; near misses, a never-served digest,
+      # a moved digest and a wrong body fail; mutants of the script; no bare `helm push` in any workflow.
+      - name: Charts are pushed through hack/push-chart.sh, which retries GHCR's tag race and nothing else
+        run: python3 hack/validate-push-chart.py .
+
       - name: Repository-authored YAML is block style only
         run: python3 hack/validate-yaml-block-style.py .
 

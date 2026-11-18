@@ -275,11 +275,16 @@ jobs:
             exit 1
           fi
 
+      # hack/push-chart.sh: helm push, surviving GHCR's tag read-after-write race (and only that) by tagging the same
+      # digest once the registry serves it.
       - name: Push every chart to GHCR
+        env:
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           for tgz in dist/*/*.tgz; do
-            helm push "$tgz" "${OCI_REPO}"
+            hack/push-chart.sh "$tgz" "${OCI_REPO}"
             echo "Published ${OCI_REPO}/$(basename "$tgz" .tgz)"
           done
 

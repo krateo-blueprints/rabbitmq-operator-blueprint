@@ -13,7 +13,7 @@ safe only while these hold, and each is a one-line edit away from breaking, so e
      step that writes the index, pushes git, tags or creates a release. No workflow but release-tag.yaml calls
      krateo-blueprints/charts publish-chart.yaml.
   2. IT PUBLISHES A PRE-RELEASE, STAMPED. It derives its version with hack/release-version.sh, checks the pre-release
-     shape before the step that stamps and pushes, and inside that step before `helm push`; it stamps CHART_VERSION in
+     shape before the step that stamps and pushes, and inside that step before hack/push-chart.sh; it stamps CHART_VERSION in
      every Chart.yaml and CompositionDefinition; it uploads the artifact.
   3. THE SHAPES ARE RIGHT. hack/release-version.sh `check` accepts and refuses a table of versions per channel; `derive`
      runs in a throwaway git repository: a commit on main gets -main.g<sha7>, one off it -dev.g<sha7>; the base comes
@@ -114,14 +114,15 @@ def workflow_problems(text):
     runs = [str(st.get("run") or "") for st in steps]
     derive = [i for i, r in enumerate(runs) if "hack/release-version.sh derive" in r]
     checks = [i for i, r in enumerate(runs) if "hack/release-version.sh check prerelease" in r]
-    pushes = [i for i, r in enumerate(runs) if "helm push" in r]
+    pushes = [i for i, r in enumerate(runs) if "hack/push-chart.sh" in r]
     if not derive:
         out.append("never derives its version with hack/release-version.sh derive")
     if not pushes:
         out.append("never pushes a chart")
     for i in pushes:
         r = runs[i]
-        if not any(c < i for c in checks) or "check prerelease" not in r or r.index("check prerelease") > r.index("helm push"):
+        if not any(c < i for c in checks) or "check prerelease" not in r \
+                or r.index("check prerelease") > r.index("hack/push-chart.sh"):
             out.append("step %d pushes without checking the pre-release shape first, in an earlier step and in the step "
                        "itself" % i)
         if not re.search(r"CHART_VERSION/\$\{VERSION\}/g\"? .*Chart\.yaml.*compositiondefinition\.yaml", r):
