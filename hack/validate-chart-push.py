@@ -36,7 +36,7 @@ except ImportError:
     sys.exit(2)
 
 ACTION = "krateo-platformops/.github/.github/actions/chart-push"
-SHA = "fb91b76eb585cdd2f148abfbfb6d14e05bcbacb4"
+SHA = "5f126b7d93ec5302eb9cc57a3af157550175fbaf"
 PUSH = re.compile(r"""(^|[\s;&|(`'"])(helm|oras)\s+push\b""")
 USES = re.compile(r"""^\s*(?:-\s+)?uses:\s*(['"]?)([^'"\s#]+)\1\s*(?:#\s*(.*?))?\s*$""")
 COMMENT = re.compile(r"^(main \d{4}-\d{2}-\d{2}|\d+\.\d+\.\d+)$")
