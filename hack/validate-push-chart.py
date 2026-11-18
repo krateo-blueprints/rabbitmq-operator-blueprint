@@ -14,9 +14,18 @@ manifest GET 404s until a chosen poll, and requires the token it issued). Cases:
   never      the race, the digest never served          -> 1, one push, "still not served", every poll spent
   moved      the race, the second push on another digest -> 1
   wrongbody  the race, the registry serves other bytes  -> 1 (a body is not the digest until it hashes to it)
+  big        an archive with 20,001 entries              -> 0, one push (the chart name read from the first entry)
+  notgz      a file that is not a gzip archive           -> 1, no push, "not a readable chart archive"
 
-Then it mutates copies of push-chart.sh (retry keyed on any error, no poll, no digest comparison, no body hash) and
-fails if a case does not notice. Last, every `helm push` in .github/workflows goes through hack/push-chart.sh.
+`big` lists through a stand-in `tar` that runs the real one and re-emits its listing one write per line, so a reader
+that stops early kills it with SIGPIPE on every OS. That is what GNU tar 1.35 does on ubuntu-latest: under pipefail
+the old `tar -tzf | head -n1` name read died 20 of 20 times on a 20,001-entry archive (krateo-platformops/.github#59,
+head-pipeline job). macOS bsdtar buffers its listing and survived 30 of 30, so real tar alone would make the case's
+mutant depend on the platform.
+
+Then it mutates copies of push-chart.sh (retry keyed on any error, no poll, no digest comparison, no body hash, the
+`head -n1` name read restored, no message for an unreadable archive) and fails if a case does not notice; the last
+two must be noticed by `big` and `notgz` respectively. Last, every `helm push` in .github/workflows goes through hack/push-chart.sh.
 
 Fails (exit 2) when bash, tar or push-chart.sh is missing, or when no workflow calls push-chart.sh.
 """
@@ -104,7 +113,15 @@ CASES = {
     "never": (["race " + DIGEST, "ok " + DIGEST], 999, BODY),
     "moved": (["race " + DIGEST, "ok " + OTHER], 1, BODY),
     "wrongbody": (["race " + DIGEST, "ok " + DIGEST], 1, b"other bytes"),
+    "big": (["ok " + DIGEST], 1, BODY),
+    "notgz": (["ok " + DIGEST], 1, BODY),
 }
+BIG_ENTRIES = 20000  # plus Chart.yaml
+
+# A tar that cannot outlive a reader which stopped early: the real tar's output, one write per line.
+TAR = r'''#!/usr/bin/env bash
+"$REAL_TAR" "$@" | while IFS= read -r line; do printf '%s\n' "$line"; done
+'''
 
 
 def run_case(script, case, tmp):
@@ -112,7 +129,8 @@ def run_case(script, case, tmp):
     stub = tempfile.mkdtemp(dir=tmp)
     bindir = os.path.join(stub, "bin")
     os.makedirs(bindir)
-    for name, src in (("helm", HELM), ("curl", CURL)):
+    stand_ins = [("helm", HELM), ("curl", CURL)] + ([("tar", TAR)] if case == "big" else [])
+    for name, src in stand_ins:
         p = os.path.join(bindir, name)
         open(p, "w").write(src)
         os.chmod(p, os.stat(p).st_mode | stat.S_IEXEC)
@@ -120,13 +138,20 @@ def run_case(script, case, tmp):
     open(os.path.join(stub, "at"), "w").write(str(at))
     open(os.path.join(stub, "body"), "wb").write(body)
     tgz = os.path.join(stub, "demo-0.1.0.tgz")
-    with tarfile.open(tgz, "w:gz") as t:
-        data = b"name: demo\nversion: 0.1.0\n"
-        info = tarfile.TarInfo("demo/Chart.yaml")
-        info.size = len(data)
-        t.addfile(info, io.BytesIO(data))
+    if case == "notgz":
+        open(tgz, "w").write("not a gzip archive\n")
+    else:
+        with tarfile.open(tgz, "w:gz") as t:
+            data = b"name: demo\nversion: 0.1.0\n"
+            info = tarfile.TarInfo("demo/Chart.yaml")
+            info.size = len(data)
+            t.addfile(info, io.BytesIO(data))
+            for k in range(BIG_ENTRIES if case == "big" else 0):
+                info = tarfile.TarInfo("demo/templates/generated-file-with-a-long-name-%05d.yaml" % k)
+                info.size = 0
+                t.addfile(info, io.BytesIO(b""))
     env = dict(os.environ, STUB=stub, PATH=bindir + os.pathsep + os.environ["PATH"], PUSH_POLL_ATTEMPTS="4",
-               PUSH_POLL_INTERVAL="0")
+               PUSH_POLL_INTERVAL="0", REAL_TAR=shutil.which("tar"))
     env.pop("REGISTRY_TOKEN", None)
     r = subprocess.run(["bash", script, tgz, "oci://reg.stand.in/org/charts"], env=env, capture_output=True, text=True)
 
@@ -149,6 +174,8 @@ def case_failures(script, tmp):
             "never": rc == 1 and pushes == 1 and gets == 4 and "still not served" in log,
             "moved": rc == 1 and pushes == 2 and "not " + DIGEST in log,
             "wrongbody": rc == 1 and pushes == 1 and "still not served" in log,
+            "big": rc == 0 and pushes == 1 and ("Digest: " + DIGEST) in log,
+            "notgz": rc == 1 and pushes == 0 and "not a readable chart archive" in log,
         }[case]
         if not want:
             out.append("case %s: rc %d, %d push(es), %d manifest GET(s); log tail: %s"
@@ -166,18 +193,25 @@ MUTANTS = [
     ("no poll", '  if fetchable "$orphan"; then served=$i; break; fi', "  served=$i; break"),
     ("no digest comparison", '[ "$again" = "$orphan" ] \\\n  || die', 'true \\\n  || die'),
     ("no body hash", '[ "sha256:$(sha256_of "$work/manifest")" = "$digest" ]', "true"),
+    # The name read: the old `| head -n1` restored, which a long listing kills; and the unreadable-archive message.
+    ("the head -n1 name read restored", "awk -F/ 'NR == 1 { print $1 }'", "head -n1 | cut -d/ -f1", "big"),
+    ("no message for an unreadable archive", ' || die "${tgz} is not a readable chart archive"', "", "notgz"),
 ]
 with tempfile.TemporaryDirectory() as tmp:
     for f in case_failures(SCRIPT, tmp):
         failures.append("hack/push-chart.sh " + f)
     killed = 0
-    for label, a, b in MUTANTS:
+    for label, a, b, *by in MUTANTS:
         if src.count(a) != 1:
             failures.append("cannot plant mutant '%s': its anchor occurs %d times" % (label, src.count(a)))
             continue
         p = os.path.join(tmp, "mutant.sh")
         open(p, "w").write(src.replace(a, b))
-        if case_failures(p, tmp):
+        caught = case_failures(p, tmp)
+        if by and not any(c.startswith("case %s:" % by[0]) for c in caught):
+            failures.append("case %s does not notice push-chart.sh with %s (caught by: %s)"
+                            % (by[0], label, "; ".join(c.split(":")[0] for c in caught) or "nothing"))
+        elif caught:
             killed += 1
         else:
             failures.append("no case notices push-chart.sh with %s" % label)

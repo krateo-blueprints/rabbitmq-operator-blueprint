@@ -31,7 +31,11 @@ tgz="${1:-}" repo="${2:-}"
 [[ "$repo" == oci://*/* ]] || die "usage: $0 CHART.tgz oci://REGISTRY/PATH (got '${repo}')"
 attempts="${PUSH_POLL_ATTEMPTS:-10}" interval="${PUSH_POLL_INTERVAL:-3}"
 
-name="$(tar -tzf "$tgz" | head -n1 | cut -d/ -f1)"
+# The name comes from the whole listing. `tar -tzf | head -n1` under pipefail: once head exits, tar dies of SIGPIPE, the
+# assignment fails and set -e ends the script with no message. Measured on GNU tar 1.35 (ubuntu-latest), a 20,001-entry
+# archive: 20 of 20 runs (krateo-platformops/.github#59's head-pipeline job). awk reads to the end, so tar is never cut
+# off; an archive tar cannot read fails saying so, not silently.
+name="$(tar -tzf "$tgz" | awk -F/ 'NR == 1 { print $1 }')" || die "${tgz} is not a readable chart archive"
 [ -n "$name" ] || die "${tgz} has no top-level chart directory"
 host="${repo#oci://}"; path="${host#*/}/${name}"; host="${host%%/*}"
 
