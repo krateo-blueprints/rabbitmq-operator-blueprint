@@ -16,6 +16,8 @@ implementation replaced it. In .github/workflows/*.y*ml:
   3. Locate mode wired: a step that runs `bash "${CHART_PUSH}"` sets CHART_PUSH to the `path` output of an earlier
      chart-push step in the same job. (Push mode, `with: chart:`, needs no wiring.)
   4. Something pushes through it: no chart-push step at all fails, since a check that found nothing checked nothing.
+  5. The copy is gone: a file named push-chart.sh or validate-push-chart.py anywhere in the repository is refused, so
+     the old copy (PR #4, deleted in #5) cannot come back beside the one implementation.
 
 Before reading the workflows it runs a self-test: planted workflows that each break one rule must be refused, for that
 rule's reason, and the accepted forms (locate mode, push mode, a commented push) must pass.
@@ -76,8 +78,14 @@ def problems(name, text):
     return out, found
 
 
-def check(files):
+OLD_COPY = ("push-chart.sh", "validate-push-chart.py")
+
+
+def check(files, present=()):
     out, found = [], 0
+    for path in present:
+        if os.path.basename(path) in OLD_COPY:
+            out.append("%s is a copy of the chart push; push through %s instead (PUBLISHING.md rule 14)" % (path, ACTION))
     for name, text in files.items():
         p, f = problems(name, text)
         out += p
@@ -129,14 +137,16 @@ REFUSED = [
     ("the action at an abbreviated sha", LOCATE.replace(SHA, SHA[:7]), "is not pinned"),
     ("CHART_PUSH from nowhere", LOCATE.replace("${{ steps.chart-push.outputs.path }}", "/tmp/push.sh"), "without CHART_PUSH set"),
     ("no chart push at all", "on: push\njobs:\n  x:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo hi\n", "no workflow pushes through"),
+    ("the old copy back", LOCATE, "hack/push-chart.sh is a copy of the chart push", ("hack/push-chart.sh",)),
+    ("the old validator back", LOCATE, "hack/validate-push-chart.py is a copy of the chart push", ("hack/validate-push-chart.py",)),
 ]
 ACCEPTED = [("locate mode, a commented push", LOCATE), ("push mode, a commented push", PUSH_MODE)]
 
 
 def self_test():
     bad = []
-    for label, text, why in REFUSED:
-        got = check({"planted.yaml": text})
+    for label, text, why, *present in REFUSED:
+        got = check({"planted.yaml": text}, present[0] if present else ())
         if not any(why in g for g in got):
             bad.append("%s: not refused for %r (got %s)" % (label, why, got or "nothing"))
     for label, text in ACCEPTED:
@@ -156,10 +166,12 @@ paths = sorted(glob.glob(os.path.join(root, ".github", "workflows", "*.y*ml")))
 if not paths:
     print("FAILED MEASUREMENT: no .github/workflows/*.y*ml, so nothing was checked")
     sys.exit(2)
-fails = check({os.path.relpath(p, root): open(p, encoding="utf-8").read() for p in paths})
+present = [os.path.relpath(os.path.join(d, f), root) for d, ds, fs in os.walk(root) for f in fs
+           if ".git" not in os.path.relpath(d, root).split(os.sep)]
+fails = check({os.path.relpath(p, root): open(p, encoding="utf-8").read() for p in paths}, present)
 if fails:
     for f in fails:
         print("FAIL: " + f)
     sys.exit(1)
 print("OK: self-test (%d planted breaks refused, %d accepted forms passed); %d workflow(s), every chart push through %s "
-      "pinned by commit, none bare" % (len(REFUSED), len(ACCEPTED), len(paths), ACTION))
+      "pinned by commit, none bare, no copy of it" % (len(REFUSED), len(ACCEPTED), len(paths), ACTION))
