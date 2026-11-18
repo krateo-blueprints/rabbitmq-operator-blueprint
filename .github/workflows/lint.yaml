@@ -60,6 +60,11 @@ jobs:
       - name: The release runs this repository's preflight before publishing anything
         run: python3 hack/validate-release-wiring.py .
 
+      # prerelease.yaml: dispatch only, contents: read + packages: write, no reusable workflow or index step, the
+      # pre-release shape checked before push; the version scripts' table, derive and loosened copies.
+      - name: A pre-release reaches GHCR only, and a release is never a pre-release version
+        run: python3 hack/validate-prerelease-channel.py .
+
       - name: Repository-authored YAML is block style only
         run: python3 hack/validate-yaml-block-style.py .
 

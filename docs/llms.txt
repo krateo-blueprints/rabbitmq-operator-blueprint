@@ -24,6 +24,8 @@ channel, each with its CompositionDefinition inside the archive.
 - Both charts share the repository version, stamped from the tag; appVersion is the upstream version.
 - Kinds RabbitmqClusterOperator and RabbitmqTopologyOperator, served at composition.krateo.io/v<X-Y-Z>.
 - hack/release-preflight refuses a tag the examples do not name.
+- Pre-releases: dispatch prerelease.yaml with a ref; X.Y.Z-main.g<sha7> (-dev. off main) to GHCR plus a run artifact
+  with the stamped CompositionDefinitions and examples; never in the Marketplace index (docs/release.md).
 
 ## Docs
 - docs/index.md, docs/overview.md, docs/usage.md, docs/configuration.md, docs/api.md, docs/examples.md,
