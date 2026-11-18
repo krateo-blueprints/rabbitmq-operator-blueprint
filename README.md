@@ -79,6 +79,7 @@ anti-affinity.
 - `validate-render.py`: the render, the HA defaults and the refusals;
 - `validate-release-wiring.py`: the release preflight runs first, and every `uses:` is pinned by SHA;
 - `validate-prerelease-channel.py`: `prerelease.yaml` publishes only a pre-release, to GHCR, never to the index;
+- `validate-push-chart.py`: both workflows push through `hack/push-chart.sh`, which retries GHCR's tag race only;
 - `validate-yaml-block-style.py`: block-style YAML only.
 
 `preflight-refs.yaml` resolves every image reference. Tag `X.Y.Z` after updating the examples to

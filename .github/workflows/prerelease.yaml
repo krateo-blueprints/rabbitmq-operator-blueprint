@@ -91,7 +91,12 @@ jobs:
       # Each chart and its CompositionDefinition stamped at the pre-release version, the CompositionDefinition shipped
       # inside the archive as a release does, then pushed. The version shape is checked again here, before anything is
       # stamped.
+      # hack/push-chart.sh: helm push, surviving GHCR's tag read-after-write race (and only that) by tagging the same
+      # digest once the registry serves it. Run 44279368853 failed on that race before it existed.
       - name: Package and push both charts
+        env:
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           hack/release-version.sh check prerelease "${VERSION}"
@@ -105,7 +110,7 @@ jobs:
             helm package "${bp}chart" --version "${VERSION}" --destination pkg
             rm "${bp}chart/compositiondefinition.yaml"
             cp "${bp}compositiondefinition.yaml" "dist/compositiondefinition-${name}.yaml"
-            helm push "pkg/${name}-${VERSION}.tgz" "${OCI_REPO}"
+            hack/push-chart.sh "pkg/${name}-${VERSION}.tgz" "${OCI_REPO}"
             echo "pushed ${OCI_REPO}/${name}:${VERSION}"
           done
 

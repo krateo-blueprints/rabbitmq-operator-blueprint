@@ -33,3 +33,6 @@ timestamp: 2026-11-18T00:00:00+00:00
   `X.Y.Z-main.g<sha7>` (`-dev.` off main) with the stamped CompositionDefinitions and examples as a run artifact, so
   the #309 H2 live tests install a commit before any tag. It holds `contents: read` + `packages: write` only and never
   touches the Marketplace index; `hack/validate-prerelease-channel.py` checks that with mutations.
+- **Pushes survive GHCR's tag read-after-write race.** The first pre-release run failed with `failed to perform "Tag"
+  on destination: sha256:...: not found` and left an untagged manifest. `hack/push-chart.sh` waits until that digest is
+  served and tags the same digest; any other push error still fails at once.

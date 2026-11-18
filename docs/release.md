@@ -66,6 +66,17 @@ What it cannot do, checked on every pull request by `hack/validate-prerelease-ch
 A pre-release is not required before a tag: whether the live test passed is krateo-openstack-blueprint's call before it
 pins a release of these charts.
 
+## Pushing to GHCR
+
+Both `release-tag.yaml` and `prerelease.yaml` push through `hack/push-chart.sh`. `helm push` PUTs the manifest by
+digest, then tags it, and the tag step first reads the manifest back by digest. GHCR has 404'd that read about a second
+after accepting the PUT (`failed to perform "Tag" on destination: sha256:<digest>: not found`, prerelease run
+44279368853), leaving an untagged manifest. On that exact error the script polls until the registry serves that digest
+(10 polls, 3 s apart), then pushes the same archive again: helm derives the manifest from the archive and its
+modification time, so the second push has the same digest, and the script fails if it does not. Any other error fails at
+once; a digest still not served after the polls fails, naming it. `hack/validate-push-chart.py` drives the script with
+stand-in `helm` and `curl`, and mutates it.
+
 ## Bumping an upstream version
 
 1. Download the new release's asset and replace `blueprints/<chart>/chart/files/upstream/<asset>` with it, unchanged.
