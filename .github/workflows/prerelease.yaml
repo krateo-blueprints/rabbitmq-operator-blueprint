@@ -88,15 +88,23 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | \
             helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
 
+      # The organisation's one chart push (krateo-blueprints/charts PUBLISHING.md rule 14), in locate mode: it outputs
+      # the path of its push.sh, which the loop below runs once per chart. push.sh retries GHCR's tag read-after-write
+      # race (and only that) by pushing the same archive again once the registry serves the digest, and fails if the tag
+      # would land on another digest. Run 44279368853 failed on that race before this repository had a fix.
+      - name: Locate the shared chart push
+        id: chart-push
+        uses: krateo-platformops/.github/.github/actions/chart-push@fb91b76eb585cdd2f148abfbfb6d14e05bcbacb4 # main 2026-11-18
+
       # Each chart and its CompositionDefinition stamped at the pre-release version, the CompositionDefinition shipped
       # inside the archive as a release does, then pushed. The version shape is checked again here, before anything is
       # stamped.
-      # hack/push-chart.sh: helm push, surviving GHCR's tag read-after-write race (and only that) by tagging the same
-      # digest once the registry serves it. Run 44279368853 failed on that race before it existed.
       - name: Package and push both charts
         env:
-          REGISTRY_USER: ${{ github.actor }}
-          REGISTRY_TOKEN: ${{ github.token }}
+          CHART_PUSH: ${{ steps.chart-push.outputs.path }}
+          # push.sh reads the manifest back with these, after the login above.
+          REGISTRY_USERNAME: ${{ github.actor }}
+          REGISTRY_PASSWORD: ${{ github.token }}
         run: |
           set -euo pipefail
           hack/release-version.sh check prerelease "${VERSION}"
@@ -110,7 +118,7 @@ jobs:
             helm package "${bp}chart" --version "${VERSION}" --destination pkg
             rm "${bp}chart/compositiondefinition.yaml"
             cp "${bp}compositiondefinition.yaml" "dist/compositiondefinition-${name}.yaml"
-            hack/push-chart.sh "pkg/${name}-${VERSION}.tgz" "${OCI_REPO}"
+            bash "${CHART_PUSH}" "pkg/${name}-${VERSION}.tgz" "${OCI_REPO}"
             echo "pushed ${OCI_REPO}/${name}:${VERSION}"
           done
 

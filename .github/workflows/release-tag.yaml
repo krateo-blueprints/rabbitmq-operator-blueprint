@@ -275,16 +275,24 @@ jobs:
             exit 1
           fi
 
-      # hack/push-chart.sh: helm push, surviving GHCR's tag read-after-write race (and only that) by tagging the same
-      # digest once the registry serves it.
+      # The organisation's one chart push (krateo-blueprints/charts PUBLISHING.md rule 14), in locate mode: it outputs
+      # the path of its push.sh, which the loop below runs once per chart. push.sh retries GHCR's tag read-after-write
+      # race (and only that) by pushing the same archive again once the registry serves the digest, and fails if the tag
+      # would land on another digest.
+      - name: Locate the shared chart push
+        id: chart-push
+        uses: krateo-platformops/.github/.github/actions/chart-push@fb91b76eb585cdd2f148abfbfb6d14e05bcbacb4 # main 2026-11-18
+
       - name: Push every chart to GHCR
         env:
-          REGISTRY_USER: ${{ github.actor }}
-          REGISTRY_TOKEN: ${{ github.token }}
+          CHART_PUSH: ${{ steps.chart-push.outputs.path }}
+          # push.sh reads the manifest back with these, after the login above.
+          REGISTRY_USERNAME: ${{ github.actor }}
+          REGISTRY_PASSWORD: ${{ github.token }}
         run: |
           set -euo pipefail
           for tgz in dist/*/*.tgz; do
-            hack/push-chart.sh "$tgz" "${OCI_REPO}"
+            bash "${CHART_PUSH}" "$tgz" "${OCI_REPO}"
             echo "Published ${OCI_REPO}/$(basename "$tgz" .tgz)"
           done
 

@@ -65,10 +65,11 @@ jobs:
       - name: A pre-release reaches GHCR only, and a release is never a pre-release version
         run: python3 hack/validate-prerelease-channel.py .
 
-      # Stand-in helm and curl: the race retried on the same digest once served; near misses, a never-served digest,
-      # a moved digest and a wrong body fail; mutants of the script; no bare `helm push` in any workflow.
-      - name: Charts are pushed through hack/push-chart.sh, which retries GHCR's tag race and nothing else
-        run: python3 hack/validate-push-chart.py .
+      # charts PUBLISHING.md rule 14: no bare `helm push` / `oras push` in any workflow; the organisation's chart-push
+      # action pinned by commit; locate mode wired to its path output. The script's own cases and mutants live with it,
+      # in krateo-platformops/.github (.github/actions/chart-push/push_test.py).
+      - name: Charts are pushed only through krateo-platformops/.github's chart-push, pinned by commit
+        run: python3 hack/validate-chart-push.py .
 
       - name: Repository-authored YAML is block style only
         run: python3 hack/validate-yaml-block-style.py .

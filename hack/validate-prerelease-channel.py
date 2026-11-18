@@ -9,11 +9,13 @@ safe only while these hold, and each is a one-line edit away from breaking, so e
 
   1. THE PRE-RELEASE CANNOT WRITE THE INDEX OR TAG. prerelease.yaml: triggered by workflow_dispatch only, with a
      required `ref` input; permissions exactly `contents: read` and `packages: write`, with no job-level override; no
-     reusable workflow called; no secret but GITHUB_TOKEN; only the checkout, Helm and upload-artifact actions; no
+     reusable workflow called; no secret but GITHUB_TOKEN; only the checkout, Helm and upload-artifact actions and the
+     organisation's chart-push action pinned by commit (krateo-platformops/.github, charts PUBLISHING.md rule 14); no
      step that writes the index, pushes git, tags or creates a release. No workflow but release-tag.yaml calls
      krateo-blueprints/charts publish-chart.yaml.
   2. IT PUBLISHES A PRE-RELEASE, STAMPED. It derives its version with hack/release-version.sh, checks the pre-release
-     shape before the step that stamps and pushes, and inside that step before hack/push-chart.sh; it stamps CHART_VERSION in
+     shape before the step that stamps and pushes, and inside that step before it runs `bash "${CHART_PUSH}"`, the
+     push.sh of an earlier chart-push step (CHART_PUSH set from that step's `path` output); it stamps CHART_VERSION in
      every Chart.yaml and CompositionDefinition; it uploads the artifact.
   3. THE SHAPES ARE RIGHT. hack/release-version.sh `check` accepts and refuses a table of versions per channel; `derive`
      runs in a throwaway git repository: a commit on main gets -main.g<sha7>, one off it -dev.g<sha7>; the base comes
@@ -45,6 +47,9 @@ PRE = os.path.join(WF, "prerelease.yaml")
 RV = os.path.join(ROOT, "hack", "release-version.sh")
 PUBLISHER = "krateo-blueprints/charts/.github/workflows/publish-chart.yaml"
 ALLOWED_ACTIONS = ("actions/checkout@", "azure/setup-helm@", "actions/upload-artifact@")
+# The one chart push (charts PUBLISHING.md rule 14): allowed only pinned to a commit.
+CHART_PUSH_ACTION = re.compile(r"^krateo-platformops/\.github/\.github/actions/chart-push@[0-9a-f]{40}$")
+PUSH_CALL = 'bash "${CHART_PUSH}"'
 FORBIDDEN = ("publish-chart", "krateo-blueprints.github.io/charts", "gh-pages", "gh release", "git tag", "git push",
              "CHARTS_PUBLISH_TOKEN", "/releases/", "releases/download")
 
@@ -109,20 +114,24 @@ def workflow_problems(text):
     steps = [st for job in jobs.values() for st in job.get("steps") or []]
     for st in steps:
         u = st.get("uses")
-        if u and not u.startswith(ALLOWED_ACTIONS):
-            out.append("uses %s; only checkout, setup-helm and upload-artifact are allowed" % u)
+        if u and not u.startswith(ALLOWED_ACTIONS) and not CHART_PUSH_ACTION.match(u):
+            out.append("uses %s; only checkout, setup-helm, upload-artifact and chart-push pinned by commit are allowed" % u)
+    locators = [i for i, st in enumerate(steps) if CHART_PUSH_ACTION.match(str(st.get("uses") or "")) and st.get("id")]
     runs = [str(st.get("run") or "") for st in steps]
     derive = [i for i, r in enumerate(runs) if "hack/release-version.sh derive" in r]
     checks = [i for i, r in enumerate(runs) if "hack/release-version.sh check prerelease" in r]
-    pushes = [i for i, r in enumerate(runs) if "hack/push-chart.sh" in r]
+    pushes = [i for i, r in enumerate(runs) if PUSH_CALL in r]
     if not derive:
         out.append("never derives its version with hack/release-version.sh derive")
     if not pushes:
         out.append("never pushes a chart")
     for i in pushes:
         r = runs[i]
+        want = ["${{ steps.%s.outputs.path }}" % steps[k]["id"] for k in locators if k < i]
+        if str((steps[i].get("env") or {}).get("CHART_PUSH")) not in want:
+            out.append("step %d runs ${CHART_PUSH} without CHART_PUSH set from an earlier chart-push step's path output" % i)
         if not any(c < i for c in checks) or "check prerelease" not in r \
-                or r.index("check prerelease") > r.index("hack/push-chart.sh"):
+                or r.index("check prerelease") > r.index(PUSH_CALL):
             out.append("step %d pushes without checking the pre-release shape first, in an earlier step and in the step "
                        "itself" % i)
         if not re.search(r"CHART_VERSION/\$\{VERSION\}/g\"? .*Chart\.yaml.*compositiondefinition\.yaml", r):
@@ -270,6 +279,11 @@ MUTATE = [
     ("no stamping", 'sed -i "s/CHART_VERSION/${VERSION}/g" "${bp}chart/Chart.yaml" "${bp}compositiondefinition.yaml"',
      "true"),
     ("no artifact", "        uses: actions/upload-artifact@", "        uses: actions/cache@"),
+    ("the chart push at @main", "actions/chart-push@fb91b76eb585cdd2f148abfbfb6d14e05bcbacb4", "actions/chart-push@main"),
+    ("CHART_PUSH from nowhere", "          CHART_PUSH: ${{ steps.chart-push.outputs.path }}\n",
+     "          CHART_PUSH: /tmp/push.sh\n"),
+    ("a bare helm push", 'bash "${CHART_PUSH}" "pkg/${name}-${VERSION}.tgz" "${OCI_REPO}"',
+     'helm push "pkg/${name}-${VERSION}.tgz" "${OCI_REPO}"'),
     ("a literal version", 'version=$(hack/release-version.sh derive "$sha" "$BASE")', 'version="0.1.0"'),
     ("an optional ref", "        required: true\n        default: main\n", "        required: false\n        default: main\n"),
     ("a gh-pages push", "      - name: Summary\n",
