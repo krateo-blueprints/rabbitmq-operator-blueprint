@@ -68,14 +68,18 @@ pins a release of these charts.
 
 ## Pushing to GHCR
 
-Both `release-tag.yaml` and `prerelease.yaml` push through `hack/push-chart.sh`. `helm push` PUTs the manifest by
+Both `release-tag.yaml` and `prerelease.yaml` push through krateo-platformops/.github's `chart-push` action, pinned by
+commit (krateo-blueprints/charts PUBLISHING.md rule 14), in locate mode: the action outputs the path of its `push.sh`,
+and each workflow's loop runs it once per chart. Until 2026-11-18 this repository carried its own copy,
+`hack/push-chart.sh`, which became that action's push.sh; one implementation replaced the copy. `helm push` PUTs the manifest by
 digest, then tags it, and the tag step first reads the manifest back by digest. GHCR has 404'd that read about a second
 after accepting the PUT (`failed to perform "Tag" on destination: sha256:<digest>: not found`, prerelease run
 44279368853), leaving an untagged manifest. On that exact error the script polls until the registry serves that digest
 (10 polls, 3 s apart), then pushes the same archive again: helm derives the manifest from the archive and its
 modification time, so the second push has the same digest, and the script fails if it does not. Any other error fails at
-once; a digest still not served after the polls fails, naming it. `hack/validate-push-chart.py` drives the script with
-stand-in `helm` and `curl`, and mutates it.
+once; a digest still not served after the polls fails, naming it. The action's `push_test.py` drives the script with
+stand-in `helm` and `curl`, and mutates it. Here, `hack/validate-chart-push.py` refuses a bare `helm push` or
+`oras push` in any workflow, and an unpinned use of the action.
 
 ## Bumping an upstream version
 
