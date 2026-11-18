@@ -77,9 +77,11 @@ anti-affinity.
 - `validate-vendored.py`: the vendored manifests match upstream, byte for byte;
 - `validate-version-mirror.py`: every version agrees;
 - `validate-render.py`: the render, the HA defaults and the refusals;
-- `validate-release-wiring.py`: the release preflight runs first;
+- `validate-release-wiring.py`: the release preflight runs first, and every `uses:` is pinned by SHA;
+- `validate-prerelease-channel.py`: `prerelease.yaml` publishes only a pre-release, to GHCR, never to the index;
 - `validate-yaml-block-style.py`: block-style YAML only.
 
 `preflight-refs.yaml` resolves every image reference. Tag `X.Y.Z` after updating the examples to
-`composition.krateo.io/v<X-Y-Z>`; the release runs `hack/release-preflight` first. See
+`composition.krateo.io/v<X-Y-Z>`; the release runs `hack/release-preflight` first. To install a commit before tagging
+it, dispatch `prerelease.yaml` (`X.Y.Z-main.g<sha7>`, GHCR and a run artifact only). See
 [docs/release.md](docs/release.md).

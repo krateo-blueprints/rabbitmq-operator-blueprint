@@ -29,3 +29,7 @@ timestamp: 2026-11-18T00:00:00+00:00
 - **Every workflow `uses:` is pinned by full commit SHA** with a version comment, actions and reusable workflows alike
   (`krateo-platformops/.github` has no tags, so its pin names the commit date). `hack/validate-release-wiring.py`
   refuses a movable ref.
+- **A pre-release channel** (`prerelease.yaml`, dispatched with a `ref`) publishes both charts to GHCR at
+  `X.Y.Z-main.g<sha7>` (`-dev.` off main) with the stamped CompositionDefinitions and examples as a run artifact, so
+  the #309 H2 live tests install a commit before any tag. It holds `contents: read` + `packages: write` only and never
+  touches the Marketplace index; `hack/validate-prerelease-channel.py` checks that with mutations.
