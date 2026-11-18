@@ -1,0 +1,30 @@
+# rabbitmq-operator-blueprint
+
+Krateo blueprints for the RabbitMQ cluster-operator (v2.23.2) and messaging-topology-operator (v1.20.5). Each upstream
+release manifest is vendored unchanged and rendered by a chart with a short, gated list of changes. Published to
+oci://ghcr.io/krateo-blueprints/charts/rabbitmq-cluster-operator and .../rabbitmq-topology-operator on the blueprints
+channel, each with its CompositionDefinition inside the archive.
+
+## Shape
+- blueprints/<chart>/chart: Chart.yaml, values.yaml, values.schema.json, files/upstream/<asset>, templates/.
+- blueprints/<chart>/compositiondefinition.yaml: the CompositionDefinition, stamped at release.
+- hack/upstream.yaml: the upstream repo, tag, asset, SHA-256, image, container and required CRDs per chart.
+
+## Render-time changes to upstream
+- no Namespace object; rabbitmq-system becomes the release namespace;
+- helm.sh/resource-policy: keep on every CRD;
+- operator Deployment: replicas, image, pull policy, pod anti-affinity, resources, nodeSelector, tolerations from values;
+- a PodDisruptionBudget (maxUnavailable 1) with more than one replica.
+
+## Preconditions
+- cert-manager's CRDs, from any source (Krateo: the installer's features.ingress); both charts refuse without them.
+- The topology chart also refuses without rabbitmqclusters.rabbitmq.com (install the cluster-operator first).
+
+## Versioning
+- Both charts share the repository version, stamped from the tag; appVersion is the upstream version.
+- Kinds RabbitmqClusterOperator and RabbitmqTopologyOperator, served at composition.krateo.io/v<X-Y-Z>.
+- hack/release-preflight refuses a tag the examples do not name.
+
+## Docs
+- docs/index.md, docs/overview.md, docs/usage.md, docs/configuration.md, docs/api.md, docs/examples.md,
+  docs/release.md, docs/log.md

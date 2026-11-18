@@ -1,0 +1,9 @@
+apiVersion: core.krateo.io/v1alpha1
+kind: CompositionDefinition
+metadata:
+  name: rabbitmq-topology-operator
+  namespace: rabbitmq-system
+spec:
+  chart:
+    url: oci://ghcr.io/krateo-blueprints/charts/rabbitmq-topology-operator
+    version: CHART_VERSION

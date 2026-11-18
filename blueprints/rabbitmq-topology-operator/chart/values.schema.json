@@ -1,0 +1,87 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "rabbitmq-topology-operator",
+  "additionalProperties": false,
+  "properties": {
+    "replicas": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Replicas of the operator Deployment. The operator elects a leader; extra replicas are standbys."
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tag": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": [
+            "",
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        }
+      }
+    },
+    "podAntiAffinity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "preferred",
+            "required",
+            "none"
+          ]
+        },
+        "topologyKey": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "podDisruptionBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxUnavailable": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "Requests and limits for the operator container. Empty keeps upstream's.",
+      "x-kubernetes-preserve-unknown-fields": true
+    },
+    "nodeSelector": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "tolerations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "x-kubernetes-preserve-unknown-fields": true
+      }
+    },
+    "global": {
+      "type": "object",
+      "description": "Injected by the Krateo installer; unused by the templates.",
+      "x-kubernetes-preserve-unknown-fields": true
+    }
+  }
+}

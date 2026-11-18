@@ -1,0 +1,74 @@
+{{- /*
+The upstream release manifest, files/upstream/messaging-topology-operator-with-certmanager.yaml, rendered with exactly these changes (docs/overview.md;
+hack/validate-render.py derives the same result from the upstream file independently and compares):
+  - the Namespace object is not rendered: the release's namespace already exists, and Helm owns no Namespace;
+  - every "rabbitmq-system" (object namespaces, Service DNS names in Certificates, cert-manager's inject-ca-from
+    annotations, webhook Service references, RBAC subjects) becomes the release's namespace;
+  - each CustomResourceDefinition carries helm.sh/resource-policy: keep, so removing this release never deletes the
+    CRDs, and with them every custom resource in the cluster;
+  - the operator Deployment takes replicas, image, pull policy, pod anti-affinity, resources, nodeSelector and
+    tolerations from values;
+  - with more than one replica, a PodDisruptionBudget selecting the Deployment's pods.
+*/ -}}
+{{- include "rabbitmq.preconditions.require" (list $ (list "certificates.cert-manager.io" "issuers.cert-manager.io" "rabbitmqclusters.rabbitmq.com") "The messaging-topology-operator serves its admission webhooks and metrics with certificates cert-manager issues, and manages objects inside RabbitmqClusters. Install cert-manager from any source (with Krateo, the installer brings it with features.ingress; otherwise, for example, helm install cert-manager oci://quay.io/jetstack/charts/cert-manager --namespace cert-manager --create-namespace --set crds.enabled=true) and the rabbitmq-cluster-operator Composition first. docs/usage.md.") -}}
+{{- $raw := .Files.Get "files/upstream/messaging-topology-operator-with-certmanager.yaml" }}
+{{- if not $raw }}
+{{- fail "files/upstream/messaging-topology-operator-with-certmanager.yaml is missing from the chart, so there is nothing to render" }}
+{{- end }}
+{{- range $doc := regexSplit "(?m)^---[ \\t]*$" $raw -1 }}
+{{- if trim $doc }}
+{{- $o := $doc | replace "rabbitmq-system" $.Release.Namespace | fromYaml }}
+{{- if hasKey $o "Error" }}
+{{- fail (printf "files/upstream/messaging-topology-operator-with-certmanager.yaml: a document does not parse: %v" $o.Error) }}
+{{- end }}
+{{- if ne $o.kind "Namespace" }}
+{{- if eq $o.kind "CustomResourceDefinition" }}
+{{- $meta := $o.metadata }}
+{{- $ann := $meta.annotations | default dict }}
+{{- $_ := set $ann "helm.sh/resource-policy" "keep" }}
+{{- $_ := set $meta "annotations" $ann }}
+{{- end }}
+{{- if eq $o.kind "Deployment" }}
+{{- $v := $.Values }}
+{{- $_ := set $o.spec "replicas" (int $v.replicas) }}
+{{- $pod := $o.spec.template.spec }}
+{{- $found := false }}
+{{- range $c := $pod.containers }}
+{{- if eq $c.name "manager" }}
+{{- $found = true }}
+{{- $_ := set $c "image" (printf "%s:%s" $v.image.repository $v.image.tag) }}
+{{- if $v.image.pullPolicy }}{{- $_ := set $c "imagePullPolicy" $v.image.pullPolicy }}{{- end }}
+{{- if $v.resources }}{{- $_ := set $c "resources" $v.resources }}{{- end }}
+{{- end }}
+{{- end }}
+{{- if not $found }}
+{{- fail "the upstream Deployment has no container named manager: the vendored manifest changed shape" }}
+{{- end }}
+{{- $labels := $o.spec.selector.matchLabels }}
+{{- $term := dict "labelSelector" (dict "matchLabels" $labels) "topologyKey" $v.podAntiAffinity.topologyKey }}
+{{- if eq $v.podAntiAffinity.type "preferred" }}
+{{- $_ := set $pod "affinity" (dict "podAntiAffinity" (dict "preferredDuringSchedulingIgnoredDuringExecution" (list (dict "weight" 100 "podAffinityTerm" $term)))) }}
+{{- else if eq $v.podAntiAffinity.type "required" }}
+{{- $_ := set $pod "affinity" (dict "podAntiAffinity" (dict "requiredDuringSchedulingIgnoredDuringExecution" (list $term))) }}
+{{- end }}
+{{- if $v.nodeSelector }}{{- $_ := set $pod "nodeSelector" $v.nodeSelector }}{{- end }}
+{{- if $v.tolerations }}{{- $_ := set $pod "tolerations" $v.tolerations }}{{- end }}
+{{- if gt (int $v.replicas) 1 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $o.metadata.name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  maxUnavailable: {{ $v.podDisruptionBudget.maxUnavailable }}
+  selector:
+    matchLabels:
+{{ toYaml $labels | indent 6 }}
+{{- end }}
+{{- end }}
+---
+{{ toYaml $o }}
+{{- end }}
+{{- end }}
+{{- end }}
