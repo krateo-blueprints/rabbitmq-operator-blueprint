@@ -94,7 +94,7 @@ jobs:
       # would land on another digest. Run 44279368853 failed on that race before this repository had a fix.
       - name: Locate the shared chart push
         id: chart-push
-        uses: krateo-platformops/.github/.github/actions/chart-push@5f126b7d93ec5302eb9cc57a3af157550175fbaf # main 2026-11-18
+        uses: krateo-platformops/.github/.github/actions/chart-push@653ac1e67d761584993a774c76963514968b3650 # main 2026-11-18
 
       # Each chart and its CompositionDefinition stamped at the pre-release version, the CompositionDefinition shipped
       # inside the archive as a release does, then pushed. The version shape is checked again here, before anything is
