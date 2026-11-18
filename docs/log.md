@@ -24,3 +24,8 @@ timestamp: 2026-11-18T00:00:00+00:00
 - **HA by default:** 2 replicas with leader election, preferred hostname anti-affinity, a PDB.
 - **One version line** for both charts ([release.md](release.md)).
 - **Releases** run the org's release preflight (krateo-blueprints/charts 1.1.0) before publishing anything.
+- **Namespace convention:** cluster-prerequisite blueprints live in `<name>-system`; the CompositionDefinitions and
+  the example Compositions use `rabbitmq-operator-system`.
+- **Every workflow `uses:` is pinned by full commit SHA** with a version comment, actions and reusable workflows alike
+  (`krateo-platformops/.github` has no tags, so its pin names the commit date). `hack/validate-release-wiring.py`
+  refuses a movable ref.

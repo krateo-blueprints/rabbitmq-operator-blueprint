@@ -32,13 +32,19 @@ Register both CompositionDefinitions, then create the two Compositions (examples
 its stamped CompositionDefinition at `<chart>/compositiondefinition.yaml`; `<version>` is the release:
 
 ```sh
-kubectl create namespace rabbitmq-system
+kubectl create namespace rabbitmq-operator-system
 for c in rabbitmq-cluster-operator rabbitmq-topology-operator; do
   helm pull "oci://ghcr.io/krateo-blueprints/charts/${c}" --version <version> --untar --untardir /tmp/rmqop
-  kubectl apply -n rabbitmq-system -f "/tmp/rmqop/${c}/compositiondefinition.yaml"
+  kubectl apply -n rabbitmq-operator-system -f "/tmp/rmqop/${c}/compositiondefinition.yaml"
 done
 kubectl apply -f examples/basic/
 ```
+
+**The namespace convention.** A cluster-prerequisite blueprint lives in `<name>-system`, as krateo-openstack-blueprint
+lives in `openstack-system`: here `rabbitmq-operator-system`. The CompositionDefinitions are registered there, and the
+example Compositions are created there too, so the operators run in it. The Composition's namespace is the release's
+namespace, which replaces upstream's `rabbitmq-system` everywhere, and the operators find it at run time. Any other
+namespace works the same way.
 
 Applying both Compositions at once converges: the topology operator refuses to render until the cluster-operator has
 installed RabbitmqCluster's CRD, then renders on a later reconcile.

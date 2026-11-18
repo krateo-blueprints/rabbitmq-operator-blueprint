@@ -13,6 +13,10 @@ hack/release-preflight with the tag; the publishing job `needs:` it, so a refusa
   3. The hook, RUN: it passes for the version examples/basic serves, and refuses a version with a "v" prefix, a
      two-part version, another version than the examples', examples naming two versions, and a vendored
      manifest whose digest moved.
+  4. Every `uses:` in every workflow, actions and reusable workflows alike, is pinned to a full 40-hex commit SHA with
+     a `# <version>` comment (Dependabot keeps them current). A movable ref (a branch such as @main, a tag such as
+     @v7) can change what runs without a commit here, and the release workflow receives an org-wide write token.
+     Local actions (./...) are exempt.
 
 Fails when PyYAML is missing.
 """
@@ -119,10 +123,31 @@ else:
         if run(copy, served).returncode == 0:
             failures.append("3: the hook accepts examples that name two versions (%s left at %s)" % (ex[0], other))
 
+PIN = re.compile(r"^\s*(?:-\s+)?uses:\s*([^\s#]+)(?:\s+#\s*(\S.*))?$")
+wf_dir = os.path.join(ROOT, ".github", "workflows")
+pinned = 0
+for fn in sorted(os.listdir(wf_dir)):
+    if not fn.endswith((".yaml", ".yml")):
+        continue
+    for n, line in enumerate(open(os.path.join(wf_dir, fn)), 1):
+        m = PIN.match(line)
+        if not m:
+            continue
+        ref = m.group(1).strip("'\"")
+        if ref.startswith("./"):
+            continue
+        if not re.fullmatch(r"[^@\s]+@[0-9a-f]{40}", ref) or not m.group(2):
+            failures.append("4: .github/workflows/%s:%d uses %s%s; pin it to a full commit SHA with a # <version> comment"
+                            % (fn, n, ref, "" if m.group(2) else " with no version comment"))
+        else:
+            pinned += 1
+if not pinned:
+    measurement_failed("no `uses:` found in .github/workflows, so no pin was checked")
+
 if failures:
     for f in failures:
         print("FAIL: " + f)
     sys.exit(1)
-print("OK: preflight (%s) runs first and gates the push and the index; the hook passes the served version and refuses "
-      "a v-prefix, a two-part version, another version, mixed examples and a moved digest" % ", ".join(
-          "%s@%s # %s" % (k, v[0][:7], v[1]) for k, v in sorted(uses.items())))
+print("OK: %d workflow uses: pinned by full SHA; preflight (%s) runs first and gates the push and the index; the hook passes the served version and refuses "
+      "a v-prefix, a two-part version, another version, mixed examples and a moved digest" % (pinned, ", ".join(
+          "%s@%s # %s" % (k, v[0][:7], v[1]) for k, v in sorted(uses.items()))))

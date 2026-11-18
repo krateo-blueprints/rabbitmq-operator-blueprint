@@ -30,6 +30,34 @@ apply [examples/basic](examples/basic). See [docs/usage.md](docs/usage.md).
 
 Everything else is upstream's, byte for byte. See [docs/overview.md](docs/overview.md).
 
+## Versioning
+
+**One tag stamps both charts.** Each chart's `version` (and its CompositionDefinition's) is the `CHART_VERSION`
+placeholder, replaced by the git tag at release. The repository has its own version line, starting at 0.1.0, and each
+chart's `appVersion` is its upstream's version (2.23.2 and 1.20.5).
+
+**Why not mirror upstream.** A chart wrapping one upstream may commit a literal version equal to upstream's, so an
+upstream bump keeps its served apiVersion. Here one tag would have to equal two different upstream versions.
+
+**The consequence.** Every release moves both served apiVersions together (`composition.krateo.io/v<X-Y-Z>`), an
+upstream bump included, so consumers bump their Compositions' apiVersion with each release they adopt.
+[docs/release.md](docs/release.md).
+
+## Namespace
+
+The convention for cluster-prerequisite blueprints is `<name>-system`, as krateo-openstack-blueprint uses
+`openstack-system`. The CompositionDefinitions and the example Compositions live in `rabbitmq-operator-system`. The
+release namespace replaces upstream's `rabbitmq-system`, so any namespace works.
+
+## High availability
+
+2 replicas with preferred hostname anti-affinity, and a PDB. Both operators are reconcilers that elect a leader, and
+neither is on RabbitMQ's data path: if the leader's pod or node goes away, RabbitMQ keeps serving, and the standby
+takes over reconciliation within a lease. One standby is enough, and preferred spreading still schedules on small
+clusters. mariadb-operator is different: with semi-synchronous replication it performs the primary failover itself,
+so its availability is the database's, which is why that blueprint is designed with 3 replicas and required
+anti-affinity.
+
 ## Examples
 
 [examples/basic](examples/basic): both Compositions. See [docs/examples.md](docs/examples.md).
