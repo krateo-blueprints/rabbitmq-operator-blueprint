@@ -8,6 +8,10 @@
 #   image      the operator image that release deploys (repository, without tag)
 #   container  the operator container in its Deployment
 #   requires   the CustomResourceDefinitions the chart refuses to render without, on a live cluster
+#   license    the upstream's license (SPDX), named in NOTICE with its repo and tag
+#   notices    the upstream's own license and notice files, fetched at the tag and kept unchanged beside the asset, at
+#              blueprints/<chart>/chart/files/upstream/<file>, each with its SHA-256 as `digest` (not `sha256`: the
+#              PyYAML-free reader in hack/release-preflight takes every `sha256:` line as the asset's)
 upstreams:
   - chart: rabbitmq-cluster-operator
     repo: rabbitmq/cluster-operator
@@ -19,6 +23,10 @@ upstreams:
     requires:
       - certificates.cert-manager.io
       - issuers.cert-manager.io
+    license: MPL-2.0
+    notices:
+      - file: LICENSE.txt
+        digest: 9343f5b1b62ea515a5c68112bdb62ad94ce8316e8c5c0f382e5b6a47ee26128e
   - chart: rabbitmq-topology-operator
     repo: rabbitmq/messaging-topology-operator
     tag: v1.20.5
@@ -30,3 +38,9 @@ upstreams:
       - certificates.cert-manager.io
       - issuers.cert-manager.io
       - rabbitmqclusters.rabbitmq.com
+    license: MPL-2.0
+    notices:
+      - file: LICENSE.txt
+        digest: 4b89d4518bd135ab4ee154a7bce722246b57a98c3d7efc1a09409898160c2bd1
+      - file: NOTICE.txt
+        digest: 7b1519faac14ca2ad6e48504d26ecf996025b4f7e5e923a7268286945ac10b2f

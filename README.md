@@ -74,7 +74,7 @@ anti-affinity.
 ## Develop & release
 
 `lint.yaml` runs the gates in `hack/`:
-- `validate-vendored.py`: the vendored manifests match upstream, byte for byte;
+- `validate-vendored.py`: the vendored manifests, and each upstream's license and notice files, match upstream, byte for byte; `NOTICE` names each upstream;
 - `validate-version-mirror.py`: every version agrees;
 - `validate-render.py`: the render, the HA defaults and the refusals;
 - `validate-release-wiring.py`: the release preflight runs first, and every `uses:` is pinned by SHA;
@@ -86,3 +86,9 @@ anti-affinity.
 `composition.krateo.io/v<X-Y-Z>`; the release runs `hack/release-preflight` first. To install a commit before tagging
 it, dispatch `prerelease.yaml` (`X.Y.Z-main.g<sha7>`, GHCR and a run artifact only). See
 [docs/release.md](docs/release.md).
+
+## License
+
+This repository's own work is licensed under the [Apache License 2.0](LICENSE). The vendored upstream manifests keep
+their own license, the Mozilla Public License 2.0, and ship with it: see [NOTICE](NOTICE) for each upstream's
+repository, tag, license and files.
