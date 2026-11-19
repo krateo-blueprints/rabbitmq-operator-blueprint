@@ -1,0 +1,37 @@
+Krateo RabbitMQ Operator Blueprint
+Copyright 2026 Krateo S.r.l.
+
+The original work of this repository is licensed under the Apache License,
+Version 2.0 (LICENSE): the charts' templates, values and schemas, the
+CompositionDefinitions, the gates and scripts under hack/, the workflows, the
+examples and the documentation.
+
+This repository also redistributes, unchanged, the release manifests of two
+upstream projects. Those files keep their own license and are not relicensed
+by this repository:
+
+  RabbitMQ Cluster Kubernetes Operator, v2.23.2
+    Source:   https://github.com/rabbitmq/cluster-operator/tree/v2.23.2
+    License:  Mozilla Public License 2.0 (MPL-2.0)
+    Vendored: blueprints/rabbitmq-cluster-operator/chart/files/upstream/cluster-operator.yml
+    Its license, as released at that tag:
+              blueprints/rabbitmq-cluster-operator/chart/files/upstream/LICENSE.txt
+
+  RabbitMQ Messaging Topology Kubernetes Operator, v1.20.5
+    Source:   https://github.com/rabbitmq/messaging-topology-operator/tree/v1.20.5
+    License:  Mozilla Public License 2.0 (MPL-2.0)
+    Copyright 2021-2022 VMware, Inc. (from its NOTICE.txt)
+    Vendored: blueprints/rabbitmq-topology-operator/chart/files/upstream/messaging-topology-operator-with-certmanager.yaml
+    Its license and notice, as released at that tag:
+              blueprints/rabbitmq-topology-operator/chart/files/upstream/LICENSE.txt
+              blueprints/rabbitmq-topology-operator/chart/files/upstream/NOTICE.txt
+
+Each vendored manifest is available in source form at the Source URL above. The
+charts apply this repository's changes at render time (templates/manifests.yaml)
+and never edit the vendored files. hack/validate-vendored.py holds each vendored
+file, and each upstream license and notice file, to the SHA-256 recorded in
+hack/upstream.yaml and, in CI, to what upstream serves at the tag.
+
+The operator container images these manifests deploy
+(ghcr.io/rabbitmq/cluster-operator and ghcr.io/rabbitmq/messaging-topology-operator)
+are pulled from upstream's registry and are not redistributed here.

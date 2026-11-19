@@ -85,6 +85,9 @@ stand-in `helm` and `curl`, and mutates it. Here, `hack/validate-chart-push.py` 
 
 1. Download the new release's asset and replace `blueprints/<chart>/chart/files/upstream/<asset>` with it, unchanged.
 2. In `hack/upstream.yaml`, set the new `tag` and `sha256` (and `requires` if the new release needs other CRDs).
+   Fetch the upstream's license and notice files at the new tag into the same directory, unchanged, and record each
+   one's `digest` under `notices`. If the license changed, update `license` and the entry in `NOTICE`, which names each
+   upstream's repository, tag and license (`hack/validate-vendored.py` checks all of it).
 3. Set the chart's `appVersion`, `image.tag` and the `krateo.io/upstream` annotation to match.
 4. Run the gates. `hack/validate-render.py` fails if the new manifest changed shape in a way the render template does
    not handle (a renamed container, a new namespace reference outside `rabbitmq-system`).
