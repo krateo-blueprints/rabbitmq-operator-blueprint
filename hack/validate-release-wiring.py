@@ -11,8 +11,10 @@ hack/release-preflight with the tag; the publishing job `needs:` it, so a refusa
      package-and-push; the channel is blueprints everywhere and the uploaded artifact is the one the publisher reads.
   2. hack/release-preflight is an executable regular file (a hook without its executable bit fails the reusable job).
   3. The hook, RUN: it passes for the version examples/basic serves, and refuses a version with a "v" prefix, a
-     two-part version, another version than the examples', examples naming two versions, and a vendored
-     manifest whose digest moved.
+     two-part version, another version than the examples', examples naming two versions, a vendored manifest
+     whose digest moved (its licence untouched), and an upstream licence file whose digest moved (the manifest
+     untouched). Each tamper names its file, from hack/upstream.yaml, and the refusal must name that same file: a
+     glob's first match is no file in particular (a LICENSE.txt sorts before the manifest).
   4. Every `uses:` in every workflow, actions and reusable workflows alike, is pinned to a full 40-hex commit SHA with
      a `# <version>` comment (Dependabot keeps them current). A movable ref (a branch such as @main, a tag such as
      @v7) can change what runs without a commit here, and the release workflow receives an org-wide write token.
@@ -101,17 +103,29 @@ else:
     for bad in ("v" + served, "%s.%s" % (major, minor), other):
         if run(ROOT, bad).returncode == 0:
             failures.append("3: the hook accepts %r; it must refuse it" % bad)
-    with tempfile.TemporaryDirectory() as tmp:
-        copy = os.path.join(tmp, "repo")
-        shutil.copytree(ROOT, copy, ignore=shutil.ignore_patterns(".git"))
-        asset = sorted(p for p in __import__("glob").glob(os.path.join(copy, "blueprints", "*", "chart", "files",
-                                                                         "upstream", "*")))
-        if not asset:
-            measurement_failed("no vendored manifest to tamper with")
-        with open(asset[0], "a") as f:
-            f.write("# tampered\n")
-        if run(copy, served).returncode == 0:
-            failures.append("3: the hook accepts a vendored manifest whose digest moved")
+    up = (yaml.safe_load(open(os.path.join(ROOT, "hack", "upstream.yaml"))) or {}).get("upstreams") or []
+    tampers = []
+    for e in up:
+        tampers.append(("manifest", e["chart"], e["asset"]))
+        tampers += [("licence/notice", e["chart"], n["file"]) for n in (e.get("notices") or [])]
+    if not any(t[0] == "manifest" for t in tampers) or not any(t[0] != "manifest" for t in tampers):
+        measurement_failed("hack/upstream.yaml names no manifest or no licence file to tamper with")
+    for what, chart, name in tampers:
+        with tempfile.TemporaryDirectory() as tmp:
+            copy = os.path.join(tmp, "repo")
+            shutil.copytree(ROOT, copy, ignore=shutil.ignore_patterns(".git"))
+            rel = "blueprints/%s/chart/files/upstream/%s" % (chart, name)
+            with open(os.path.join(copy, rel), "a") as f:
+                f.write("# tampered\n")
+            r = run(copy, served)
+            if r.returncode == 0:
+                failures.append("3: the hook accepts a vendored %s whose digest moved (%s), everything else untouched"
+                                % (what, rel))
+            else:
+                errs = [l for l in r.stdout.splitlines() if l.startswith("::error::")]
+                if not any(rel in l for l in errs) or any(rel not in l for l in errs):
+                    failures.append("3: tampering only %s, the hook's refusal names %s, not exactly that file"
+                                    % (rel, errs or r.stdout.strip()[-200:]))
     with tempfile.TemporaryDirectory() as tmp:
         copy = os.path.join(tmp, "repo")
         shutil.copytree(ROOT, copy, ignore=shutil.ignore_patterns(".git"))

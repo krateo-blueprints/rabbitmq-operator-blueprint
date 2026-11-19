@@ -10,7 +10,8 @@
 #   - examples/basic names exactly this version: core-provider serves composition.krateo.io/v<X-Y-Z> from it, and an
 #     example left at the previous version is the defect rule 12 exists for;
 #   - both charts and both CompositionDefinitions still carry the CHART_VERSION placeholder the release stamps;
-#   - each vendored upstream manifest still has the digest hack/upstream.yaml records.
+#   - each vendored upstream manifest still has the digest hack/upstream.yaml records, and so does each upstream license
+#     and notice file shipped beside it (its `notices`), each judged on its own file.
 #
 # A pre-release of the commit is NOT required here. prerelease.yaml publishes X.Y.Z-main.g<sha7> to GHCR so the #309 H2
 # live tests can install a commit through Compositions before any tag, but the GKE run that consumes it lives in
@@ -50,30 +51,41 @@ for f in blueprints/*/chart/Chart.yaml blueprints/*/compositiondefinition.yaml; 
 done
 
 # hack/upstream.yaml read without PyYAML: the reusable preflight job installs nothing, and a hook that could not run
-# its check must refuse, not pass. Its entries are flat `key: value` lines in a fixed order (chart, ..., asset, sha256).
+# its check must refuse, not pass. Each entry's own keys sit at exactly four spaces (`    chart:`, `    asset:`,
+# `    sha256:`), its notices as `      - file:` followed by `        digest:`; the indentation is what keeps a notice's
+# digest from being read as the asset's.
 python3 - <<'PY' || bad=1
 import hashlib, re, sys
 text = open("hack/upstream.yaml").read()
 entries = []
 for block in re.split(r"(?m)^  - ", text)[1:]:
-    kv = dict(re.findall(r"(?m)^\s*(chart|asset|sha256):\s*(\S+)\s*$", block))
+    found = re.findall(r"(?m)^    (chart|asset|sha256):[ \t]*(\S+)[ \t]*$", block)
+    kv = dict(found)
+    if len(found) != len(kv):
+        kv["duplicate"] = True
+    kv["notices"] = re.findall(r"(?m)^      - file:[ \t]*(\S+)[ \t]*\n        digest:[ \t]*(\S+)[ \t]*$", block)
     entries.append(kv)
-if not entries or any(set(e) != {"chart", "asset", "sha256"} for e in entries):
+if not entries or any(set(e) - {"notices"} != {"chart", "asset", "sha256"} for e in entries):
     print("::error::hack/upstream.yaml could not be read as chart/asset/sha256 entries: %s" % entries)
+    sys.exit(1)
+if any(not e["notices"] for e in entries):
+    print("::error::hack/upstream.yaml records no license/notice file for %s; the vendored manifest ships with its "
+          "upstream's license" % [e["chart"] for e in entries if not e["notices"]])
     sys.exit(1)
 rc = 0
 for e in entries:
-    p = "blueprints/%s/chart/files/upstream/%s" % (e["chart"], e["asset"])
-    try:
-        d = hashlib.sha256(open(p, "rb").read()).hexdigest()
-    except OSError as ex:
-        print("::error::%s: %s" % (p, ex)); rc = 1; continue
-    if d != e["sha256"]:
-        print("::error::%s has SHA-256 %s, hack/upstream.yaml records %s" % (p, d, e["sha256"])); rc = 1
+    for name, want in [(e["asset"], e["sha256"])] + e["notices"]:
+        p = "blueprints/%s/chart/files/upstream/%s" % (e["chart"], name)
+        try:
+            d = hashlib.sha256(open(p, "rb").read()).hexdigest()
+        except OSError as ex:
+            print("::error::%s: %s" % (p, ex)); rc = 1; continue
+        if d != want:
+            print("::error::%s has SHA-256 %s, hack/upstream.yaml records %s" % (p, d, want)); rc = 1
 sys.exit(rc)
 PY
 
 if [ "$bad" -ne 0 ]; then
   exit 1
 fi
-echo "release ${version}: examples serve ${served}, charts and CompositionDefinitions carry CHART_VERSION, vendored digests match"
+echo "release ${version}: examples serve ${served}, charts and CompositionDefinitions carry CHART_VERSION, vendored manifest and upstream license digests match"
