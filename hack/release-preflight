@@ -51,15 +51,15 @@ for f in blueprints/*/chart/Chart.yaml blueprints/*/compositiondefinition.yaml; 
 done
 
 # hack/upstream.yaml read without PyYAML: the reusable preflight job installs nothing, and a hook that could not run
-# its check must refuse, not pass. Each entry's own keys sit at exactly four spaces (`    chart:`, `    asset:`,
-# `    sha256:`), its notices as `      - file:` followed by `        digest:`; the indentation is what keeps a notice's
-# digest from being read as the asset's.
+# its check must refuse, not pass. Split at `  - `, an entry's own keys start its block (`chart:`, right after the split)
+# or sit at exactly four spaces (`    asset:`, `    sha256:`); its notices are `      - file:` followed by
+# `        digest:`. The indentation is what keeps a notice's digest from being read as the asset's.
 python3 - <<'PY' || bad=1
 import hashlib, re, sys
 text = open("hack/upstream.yaml").read()
 entries = []
 for block in re.split(r"(?m)^  - ", text)[1:]:
-    found = re.findall(r"(?m)^    (chart|asset|sha256):[ \t]*(\S+)[ \t]*$", block)
+    found = re.findall(r"(?m)^(?:    )?(chart|asset|sha256):[ \t]*(\S+)[ \t]*$", block)
     kv = dict(found)
     if len(found) != len(kv):
         kv["duplicate"] = True
